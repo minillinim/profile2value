@@ -32,6 +32,7 @@ from pprint import pprint
 import copy
 import numpy as np
 from pylab import plot,subplot,axis,stem,show,figure
+from colorsys import hsv_to_rgb as htr
 
 ###############################################################################
 # CODE HERE
@@ -81,7 +82,13 @@ def doWork( options ):
     # write to file
     outCSV.write(options.sep.join(["'name'","'value'"])+"\n")
     for index in range (0,num_rows):
-        outCSV.write(options.sep.join([str(x) for x in [names_array[index], scaled_scores[index]]])+"\n")
+        S = 1
+        V = 1
+        if(options.colors):
+            col = "#%s" % "".join(["%0.2X" % k for k in [int(i*255) for i in htr(scaled_scores[index], S, V)]])
+            outCSV.write(options.sep.join([str(x) for x in [names_array[index], col]])+"\n")
+        else:
+            outCSV.write(options.sep.join([str(x) for x in [names_array[index], scaled_scores[index]]])+"\n")
         
     # plot the PCA if we've been asked to...
     if(options.plot):
@@ -183,6 +190,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--sep', default="\t", help="Separator")
     parser.add_argument('-H', '--header', action="store_true", default=False, help="Does the file have a header")
     parser.add_argument('-p', '--plot', action="store_true", default=False, help="Plot the PCA")
+    parser.add_argument('-c', '--colors', action="store_true", default=False, help="Output RGB colors")
 
     # get and check options
     args = parser.parse_args()
