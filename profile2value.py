@@ -29,7 +29,6 @@ import argparse
 import sys
 from pprint import pprint
 
-import csv
 import copy
 import numpy as np
 from pylab import plot,subplot,axis,stem,show,figure
@@ -39,19 +38,11 @@ from pylab import plot,subplot,axis,stem,show,figure
 ###############################################################################
 
 def doWork( options ):
-    # determine infile separator and if infile has header
-    inCSV = open(options.infile, 'rb')
-    has_header = False
-    sample = inCSV.read(1024)
-    dialect = csv.Sniffer().sniff(sample)
-    if(csv.Sniffer().has_header(sample)):
-        has_header = True
-
     # open the input and output files
-    outCSV = csv.writer(open(options.outfile, 'wb'), dialect)
-    inCSV = csv.reader(open(options.infile, 'rb'), dialect)
-    if(has_header):
-        inCSV.next()
+    outCSV = open(options.outfile, 'w')
+    inCSV = open(options.infile, 'r')
+    if(options.header):
+        next(inCSV)
     
     data_array = np.array([])
     names_array = np.array([])
@@ -61,12 +52,13 @@ def doWork( options ):
     num_rows = 0
     num_cols = 0
     max_rows = int(options.max_rows)
-    for row in inCSV:
+    for line in inCSV:
+        row = line.rstrip().split(options.sep)
         if(0 == num_rows):
             num_cols = len(row)
         num_rows += 1  
         names_array = np.append(names_array, [row[0]])
-        data_array = np.append(data_array, [float(x) for x in row[1:num_cols]])
+        data_array = np.append(data_array, [float(x) for x in row[1:]])
         if((max_rows != 0) and (num_rows >= max_rows)):
             break
     
@@ -87,9 +79,9 @@ def doWork( options ):
     scaled_scores = [(float(x)-min_score)/max_score for x in components[:,0]]
     
     # write to file
-    outCSV.writerow(["'name'","'value'"])
+    outCSV.write(options.sep.join(["'name'","'value'"])+"\n")
     for index in range (0,num_rows):
-        outCSV.writerow([names_array[index], scaled_scores[index]])
+        outCSV.write(options.sep.join([str(x) for x in [names_array[index], scaled_scores[index]]])+"\n")
         
     # plot the PCA if we've been asked to...
     if(options.plot):
@@ -111,6 +103,9 @@ class PCA:
         self.sumvariance = np.cumsum(self.eigen)
         self.sumvariance /= self.sumvariance[-1]
         self.npc = np.searchsorted( self.sumvariance, fraction ) + 1
+        while(self.npc == 1):   # prevents less than 2 pcs being found
+            fraction *= 1.1
+            self.npc = np.searchsorted( self.sumvariance, fraction ) + 1
         self.dinv = np.array([ 1/d if d > self.d[0] * 1e-6  else 0
                                 for d in self.d ])
 
@@ -177,13 +172,16 @@ class Center:
 if __name__ == '__main__':
     
     # intialise the options parser
-    parser = argparse.ArgumentParser(description='Convert a descriptive profile into a single value between 0 -> 1')
+    parser = argparse.ArgumentParser(description='Convert a descriptive profile into a single value between 0 -> 1',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # add options here:
     parser.add_argument('infile', help="CSV file of profiles to parse")
     parser.add_argument('outfile', help="The name of the CSV file to write to")
 
-    parser.add_argument('-m', '--max_rows', default=0, help="Load only this many rows of data [default: load all rows]")
+    parser.add_argument('-m', '--max_rows', default=0, help="Load only this many rows of data (0 for all rows)")
+    parser.add_argument('-s', '--sep', default="\t", help="Separator")
+    parser.add_argument('-H', '--header', action="store_true", default=False, help="Does the file have a header")
     parser.add_argument('-p', '--plot', action="store_true", default=False, help="Plot the PCA")
 
     # get and check options
