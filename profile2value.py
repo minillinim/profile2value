@@ -2,8 +2,8 @@
 ###############################################################################
 #
 #    profile2value.py
-#    
-#    Convert a descriptive profile into a single value between 0 -> 1 
+#
+#    Convert a descriptive profile into a single value between 0 -> 1
 #        ---> uses PCA
 #
 #    Useful for color coding one profile based on info contained in another
@@ -44,41 +44,47 @@ def doWork( options ):
     inCSV = open(options.infile, 'r')
     if(options.header):
         next(inCSV)
-    
-    data_array = np.array([])
-    names_array = np.array([])
-    
+
+    data_array = []
+    names_array = []
+
     # convert the input csv into an array
     print "loading data..."
     num_rows = 0
     num_cols = 0
     max_rows = int(options.max_rows)
+    cc = 10000
     for line in inCSV:
         row = line.rstrip().split(options.sep)
         if(0 == num_rows):
             num_cols = len(row)
-        num_rows += 1  
-        names_array = np.append(names_array, [row[0]])
-        data_array = np.append(data_array, [float(x) for x in row[1:]])
+        num_rows += 1
+        names_array.append([row[0]])
+        data_array.append([float(x) for x in row[1:]])
         if((max_rows != 0) and (num_rows >= max_rows)):
             break
-    
+        if num_rows % cc == 0:
+            print "%d rows loaded" % num_rows
+
     # adjust for the row names
     num_cols -= 1
+    data_array = np.array(data_array).reshape((num_rows, num_cols))
+    names_array = np.array(names_array)
     print "Loaded" ,num_rows, "rows across" , num_cols, "cols"
 
-    # do the PCA and extract the scores    
-    data_array = np.reshape(data_array, (num_rows, num_cols))
+    # do the PCA and extract the scores
     print "Performing PCA ..." ,
     Center(data_array,verbose=0)
     p = PCA(data_array)
     components = p.pc()
-    
+
+    # remove x% outliers
+
     # scale PC0
     min_score = float(min(components[:,0]))
     max_score = float(max(components[:,0]))-min_score
     scaled_scores = [(float(x)-min_score)/max_score for x in components[:,0]]
-    
+
     # write to file
     outCSV.write(options.sep.join(["'name'","'value'"])+"\n")
     for index in range (0,num_rows):
@@ -89,14 +95,14 @@ def doWork( options ):
             outCSV.write(options.sep.join([str(x) for x in [names_array[index], col]])+"\n")
         else:
             outCSV.write(options.sep.join([str(x) for x in [names_array[index], scaled_scores[index]]])+"\n")
-        
+
     # plot the PCA if we've been asked to...
     if(options.plot):
         figure()
         plot(components[:,0],components[:,1],'*g')
         axis('equal')
-        show()   
-    
+        show()
+
     return 0
 
 class PCA:
@@ -177,7 +183,7 @@ class Center:
 # Entry point, parse command line args and call out to doWork
 #
 if __name__ == '__main__':
-    
+
     # intialise the options parser
     parser = argparse.ArgumentParser(description='Convert a descriptive profile into a single value between 0 -> 1',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
